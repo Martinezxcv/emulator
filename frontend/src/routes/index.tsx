@@ -1,4 +1,3 @@
-// src/routes/index.tsx
 import { createFileRoute } from '@tanstack/react-router';
 import { useState, useEffect } from 'react';
 import type {PhoneScreen, SmsMessage} from '../types/sms';
@@ -15,17 +14,12 @@ export const Route = createFileRoute('/')({
 
 export function NokiaPhone() {
     const [screen, setScreen] = useState<PhoneScreen>('HOME');
-
-    // Stan tworzenia wiadomości
     const [recipient, setRecipient] = useState<string>('');
     const [content, setContent] = useState<string>('');
     const [activeInput, setActiveInput] = useState<'RECIPIENT' | 'CONTENT'>('RECIPIENT');
     const [multiTapState, setMultiTapState] = useState<MultiTapState>(INITIAL_MULTI_TAP_STATE);
-
-    // Podgląd konkretnej wiadomości
     const [selectedSms, setSelectedSms] = useState<SmsMessage | null>(null);
 
-    // Lista wiadomości
     const [messages, setMessages] = useState<SmsMessage[]>([
         {
             id: '1',
@@ -36,7 +30,6 @@ export function NokiaPhone() {
         },
     ]);
 
-    // Dynamiczny zegar
     const [currentTime, setCurrentTime] = useState<string>('');
 
     useEffect(() => {
@@ -49,7 +42,6 @@ export function NokiaPhone() {
         return () => clearInterval(interval);
     }, []);
 
-    // Wprowadzanie znaków
     const handleKeyPress = (key: string) => {
         if (screen !== 'COMPOSE') return;
 
@@ -64,7 +56,6 @@ export function NokiaPhone() {
         }
     };
 
-    // Obsługa przycisku 'C' / Backspace / Anuluj
     const handleClearOrCancel = () => {
         if (screen === 'COMPOSE') {
             if (activeInput === 'CONTENT') {
@@ -72,14 +63,12 @@ export function NokiaPhone() {
                     setContent((prev) => prev.slice(0, -1));
                     setMultiTapState(INITIAL_MULTI_TAP_STATE);
                 } else {
-                    // Jeśli treść pusta -> wracamy do pola numeru
                     setActiveInput('RECIPIENT');
                 }
             } else if (activeInput === 'RECIPIENT') {
                 if (recipient.length > 0) {
                     setRecipient((prev) => prev.slice(0, -1));
                 } else {
-                    // Jeśli numer też pusty -> Anulujemy i wracamy do Menu
                     resetComposeForm();
                     setScreen('HOME');
                 }
@@ -127,7 +116,7 @@ export function NokiaPhone() {
                     <hr style={{ borderColor: '#2b3e2b', margin: '4px 0' }} />
 
                     <div style={styles.screenContent}>
-                        {/* 1. MENU GŁÓWNE */}
+                        {/* MENU GŁÓWNE */}
                         {screen === 'HOME' && (
                             <div style={{ textAlign: 'center' }}>
                                 <h3 style={{ margin: '6px 0', fontSize: '13px' }}>Menu Nokia</h3>
@@ -146,7 +135,7 @@ export function NokiaPhone() {
                             </div>
                         )}
 
-                        {/* 2. PISANIE SMS-A */}
+                        {/* SMS */}
                         {screen === 'COMPOSE' && (
                             <div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
@@ -189,7 +178,7 @@ export function NokiaPhone() {
                             </div>
                         )}
 
-                        {/* 3. SKRZYNKA ODBIORCZA */}
+                        {/* SKRZYNKA ODBIORCZA */}
                         {screen === 'INBOX' && (
                             <div>
                                 <strong style={{ fontSize: '11px' }}>Skrzynka odbiorcza:</strong>
@@ -214,7 +203,7 @@ export function NokiaPhone() {
                             </div>
                         )}
 
-                        {/* 4. ODCZYT WIADOMOŚCI */}
+                        {/* ODCZYT WIADOMOŚCI */}
                         {screen === 'VIEW_SMS' && selectedSms && (
                             <div>
                                 <div style={{ fontSize: '10px', borderBottom: '1px solid #0f380f', paddingBottom: '2px' }}>
