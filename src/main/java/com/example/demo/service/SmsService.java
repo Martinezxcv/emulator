@@ -2,31 +2,49 @@ package com.example.demo.service;
 
 import com.example.demo.dto.CreateSmsRequest;
 import com.example.demo.dto.SmsDto;
+import com.example.demo.model.SmsEntity;
+import com.example.demo.repository.SmsRepository;
 import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.List;
+import java.util.UUID;
 
 @Service
 public class SmsService {
 
-    private final List<SmsDto> smsStorage = Collections.synchronizedList(new ArrayList<>());
+    private final SmsRepository smsRepository;
+
+    public SmsService(SmsRepository smsRepository) {
+        this.smsRepository = smsRepository;
+    }
 
     public SmsDto sendSms(CreateSmsRequest request) {
-        SmsDto newSms = new SmsDto(
-                UUID.randomUUID().toString(),
-                request.senderNumber(),
-                request.recipientNumber(),
-                request.content(),
-                LocalDateTime.now()
-        );
-        smsStorage.add(newSms);
-        return newSms;
+        SmsEntity entity = SmsEntity.builder()
+                .id(UUID.randomUUID().toString())
+                .senderNumber(request.senderNumber())
+                .recipientNumber(request.recipientNumber())
+                .content(request.content())
+                .timestamp(LocalDateTime.now())
+                .build();
+
+        SmsEntity saved = smsRepository.save(entity);
+        return mapToDto(saved);
     }
 
     public List<SmsDto> getMessagesForNumber(String phoneNumber) {
-        return smsStorage.stream()
-                .filter(sms -> sms.recipientNumber().equals(phoneNumber) || sms.senderNumber().equals(phoneNumber))
-                .sorted(Comparator.comparing(SmsDto::timestamp).reversed())
+        return smsRepository.findByRecipientNumberOrSenderNumberOrderByTimestampDesc(phoneNumber, phoneNumber)
+                .stream()
+                .map(this::mapToDto)
                 .toList();
+    }
+
+    private SmsDto mapToDto(SmsEntity entity) {
+        return new SmsDto(
+                entity.getId(),
+                entity.getSenderNumber(),
+                entity.getRecipientNumber(),
+                entity.getContent(),
+                entity.getTimestamp()
+        );
     }
 }
