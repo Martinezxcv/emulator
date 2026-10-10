@@ -7,28 +7,33 @@ import {
     type MultiTapState,
     processKeyPress,
 } from '../utils/multiTap';
+import { fetchMessages, sendSmsApi } from '../services/smsApi';
+import * as React from "react";
 
 export const Route = createFileRoute('/')({
     component: NokiaPhone,
 });
 
 export function NokiaPhone() {
+    const MY_PHONE_NUMBER = '600999000';
+
     const [screen, setScreen] = useState<PhoneScreen>('HOME');
     const [recipient, setRecipient] = useState<string>('');
     const [content, setContent] = useState<string>('');
     const [activeInput, setActiveInput] = useState<'RECIPIENT' | 'CONTENT'>('RECIPIENT');
     const [multiTapState, setMultiTapState] = useState<MultiTapState>(INITIAL_MULTI_TAP_STATE);
-    const [selectedSms, setSelectedSms] = useState<SmsMessage | null>(null);
 
-    const [messages, setMessages] = useState<SmsMessage[]>([
-        {
-            id: '1',
-            senderNumber: '600111222',
-            recipientNumber: 'JA',
-            content: 'Siema! Dziala ten emulator?',
-            timestamp: '12:00',
-        },
-    ]);
+    const [selectedSms, setSelectedSms] = useState<SmsMessage | null>(null);
+    const [messages, setMessages] = useState<SmsMessage[]>([]);
+
+    const loadMessages = async () => {
+        const data = await fetchMessages(MY_PHONE_NUMBER);
+        setMessages(data);
+    };
+
+    useEffect(() => {
+        loadMessages();
+    }, []);
 
     const [currentTime, setCurrentTime] = useState<string>('');
 
@@ -46,7 +51,7 @@ export function NokiaPhone() {
         if (screen !== 'COMPOSE') return;
 
         if (activeInput === 'RECIPIENT') {
-            if (/^[0-9*#]$/.test(key)) {
+            if (/^[0-9*#]$/.test(key) && recipient.length < 9) {
                 setRecipient((prev) => prev + key);
             }
         } else {
@@ -85,26 +90,24 @@ export function NokiaPhone() {
         setMultiTapState(INITIAL_MULTI_TAP_STATE);
     };
 
-    const handleSend = () => {
+    const handleSend = async () => {
         if (!content.trim() || !recipient.trim()) return;
 
-        const newSms: SmsMessage = {
-            id: Date.now().toString(),
-            senderNumber: 'JA',
-            recipientNumber: recipient,
-            content: content,
-            timestamp: currentTime,
-        };
+        const sentMessage = await sendSmsApi(MY_PHONE_NUMBER, recipient, content);
 
-        setMessages((prev) => [newSms, ...prev]);
-        resetComposeForm();
-        setScreen('INBOX');
+        if (sentMessage) {
+            resetComposeForm();
+            await loadMessages();
+            setScreen('INBOX');
+        } else {
+            alert('Błąd podczas wysyłania wiadomości do serwera!');
+        }
     };
 
     return (
         <div style={styles.pageBackground}>
             <div style={styles.phoneBody}>
-                <div style={styles.brand}>NOKIA</div>
+                <div style={styles.brand}>NOKIA ({MY_PHONE_NUMBER})</div>
 
                 {/* Ekran LCD */}
                 <div style={styles.lcdScreen}>
@@ -116,7 +119,6 @@ export function NokiaPhone() {
                     <hr style={{ borderColor: '#2b3e2b', margin: '4px 0' }} />
 
                     <div style={styles.screenContent}>
-                        {/* MENU GŁÓWNE */}
                         {screen === 'HOME' && (
                             <div style={{ textAlign: 'center' }}>
                                 <h3 style={{ margin: '6px 0', fontSize: '13px' }}>Menu Nokia</h3>
@@ -127,15 +129,20 @@ export function NokiaPhone() {
                                         setScreen('COMPOSE');
                                     }}
                                 >
-                                    1. Napisz SMS
+                                    Napisz SMS
                                 </button>
-                                <button style={styles.retroBtn} onClick={() => setScreen('INBOX')}>
-                                    2. Skrzynka ({messages.length})
+                                <button
+                                    style={styles.retroBtn}
+                                    onClick={async () => {
+                                        await loadMessages();
+                                        setScreen('INBOX');
+                                    }}
+                                >
+                                    Skrzynka ({messages.length})
                                 </button>
                             </div>
                         )}
 
-                        {/* SMS */}
                         {screen === 'COMPOSE' && (
                             <div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
@@ -148,7 +155,6 @@ export function NokiaPhone() {
                                     </button>
                                 </div>
 
-                                {/* Pole numeru */}
                                 <div
                                     style={{
                                         ...styles.inputField,
@@ -161,7 +167,6 @@ export function NokiaPhone() {
                                     <b>{recipient || '_'}</b>
                                 </div>
 
-                                {/* Pole treści */}
                                 <div
                                     style={{
                                         ...styles.inputField,
@@ -178,7 +183,6 @@ export function NokiaPhone() {
                             </div>
                         )}
 
-                        {/* SKRZYNKA ODBIORCZA */}
                         {screen === 'INBOX' && (
                             <div>
                                 <strong style={{ fontSize: '11px' }}>Skrzynka odbiorcza:</strong>
@@ -195,7 +199,7 @@ export function NokiaPhone() {
                                                     setScreen('VIEW_SMS');
                                                 }}
                                             >
-                                                <b>{m.senderNumber}</b>: {m.content.slice(0, 12)}...
+                                                <b>{m.senderNumber === MY_PHONE_NUMBER ? `Do: ${m.recipientNumber}` : m.senderNumber}</b>: {m.content.slice(0, 10)}...
                                             </div>
                                         ))
                                     )}
@@ -203,11 +207,10 @@ export function NokiaPhone() {
                             </div>
                         )}
 
-                        {/* ODCZYT WIADOMOŚCI */}
                         {screen === 'VIEW_SMS' && selectedSms && (
                             <div>
                                 <div style={{ fontSize: '10px', borderBottom: '1px solid #0f380f', paddingBottom: '2px' }}>
-                                    Od: <b>{selectedSms.senderNumber}</b> ({selectedSms.timestamp})
+                                    {selectedSms.senderNumber === MY_PHONE_NUMBER ? 'Do:' : 'Od:'} <b>{selectedSms.senderNumber === MY_PHONE_NUMBER ? selectedSms.recipientNumber : selectedSms.senderNumber}</b>
                                 </div>
                                 <div style={{ fontSize: '12px', marginTop: '6px', wordBreak: 'break-all' }}>
                                     {selectedSms.content}
@@ -217,7 +220,7 @@ export function NokiaPhone() {
                     </div>
                 </div>
 
-                {/* PRZYCISKI NAWIGACYJNE NA OBUDOWIE */}
+                {/* PRZYCISKI NAWIGACYJNE */}
                 <div style={styles.navSection}>
                     {screen === 'COMPOSE' && (
                         <>
@@ -248,7 +251,7 @@ export function NokiaPhone() {
                     )}
                 </div>
 
-                {/* KLAWIATURA NUMERYCZNA */}
+                {/* KLAWIATURA */}
                 <div style={styles.keypad}>
                     {KEY_LAYOUT.map((item) => (
                         <button
@@ -269,126 +272,20 @@ export function NokiaPhone() {
 }
 
 const styles: Record<string, React.CSSProperties> = {
-    pageBackground: {
-        minHeight: '100vh',
-        backgroundColor: '#121212',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        fontFamily: 'monospace',
-    },
-    phoneBody: {
-        width: '300px',
-        backgroundColor: '#3b434c',
-        borderRadius: '30px',
-        padding: '20px',
-        border: '4px solid #222',
-    },
-    brand: {
-        textAlign: 'center',
-        color: '#d1d5db',
-        fontWeight: 'bold',
-        fontSize: '20px',
-        marginBottom: '10px',
-    },
-    lcdScreen: {
-        backgroundColor: '#9bbc0f',
-        color: '#0f380f',
-        padding: '10px',
-        borderRadius: '10px',
-        border: '3px solid #8bac0f',
-        minHeight: '160px',
-    },
-    statusBar: {
-        display: 'flex',
-        justifyContent: 'space-between',
-        fontSize: '10px',
-        fontWeight: 'bold',
-    },
-    screenContent: {
-        marginTop: '5px',
-    },
-    inputField: {
-        border: '2px solid transparent',
-        padding: '3px 5px',
-        borderRadius: '4px',
-        cursor: 'pointer',
-        wordBreak: 'break-all',
-    },
-    switchBtn: {
-        backgroundColor: 'transparent',
-        border: 'none',
-        color: '#0f380f',
-        fontSize: '9px',
-        fontWeight: 'bold',
-        cursor: 'pointer',
-        padding: 0,
-    },
-    smsItem: {
-        padding: '3px',
-        borderBottom: '1px dashed #0f380f',
-        fontSize: '11px',
-        cursor: 'pointer',
-    },
-    retroBtn: {
-        display: 'block',
-        width: '100%',
-        backgroundColor: '#8bac0f',
-        border: '1px solid #0f380f',
-        color: '#0f380f',
-        padding: '4px',
-        marginTop: '4px',
-        cursor: 'pointer',
-        fontWeight: 'bold',
-        fontFamily: 'monospace',
-    },
-    navSection: {
-        display: 'flex',
-        justifyContent: 'space-between',
-        gap: '10px',
-        marginTop: '15px',
-    },
-    navBtn: {
-        flex: 2,
-        backgroundColor: '#1f2937',
-        color: '#fff',
-        border: '2px solid #111827',
-        borderRadius: '12px',
-        padding: '8px 0',
-        fontWeight: 'bold',
-        cursor: 'pointer',
-    },
-    clearBtn: {
-        flex: 1,
-        backgroundColor: '#991b1b',
-        color: '#fff',
-        border: '2px solid #7f1d1d',
-        borderRadius: '12px',
-        padding: '8px 0',
-        fontWeight: 'bold',
-        fontSize: '14px',
-        cursor: 'pointer',
-    },
-    keypad: {
-        display: 'grid',
-        gridTemplateColumns: 'repeat(3, 1fr)',
-        gap: '8px',
-        marginTop: '10px',
-    },
-    key: {
-        backgroundColor: '#1f2937',
-        color: '#fff',
-        border: '2px solid #111827',
-        borderRadius: '8px',
-        padding: '8px 0',
-        fontSize: '14px',
-        fontWeight: 'bold',
-        cursor: 'pointer',
-        textAlign: 'center',
-    },
-    keySubtext: {
-        fontSize: '9px',
-        color: '#9ca3af',
-        marginTop: '2px',
-    },
+    pageBackground: { minHeight: '100vh', backgroundColor: '#121212', display: 'flex', justifyContent: 'center', alignItems: 'center', fontFamily: 'monospace' },
+    phoneBody: { width: '300px', backgroundColor: '#3b434c', borderRadius: '30px', padding: '20px', border: '4px solid #222' },
+    brand: { textAlign: 'center', color: '#d1d5db', fontWeight: 'bold', fontSize: '16px', marginBottom: '10px' },
+    lcdScreen: { backgroundColor: '#9bbc0f', color: '#0f380f', padding: '10px', borderRadius: '10px', border: '3px solid #8bac0f', minHeight: '160px' },
+    statusBar: { display: 'flex', justifyContent: 'space-between', fontSize: '10px', fontWeight: 'bold' },
+    screenContent: { marginTop: '5px' },
+    inputField: { border: '2px solid transparent', padding: '3px 5px', borderRadius: '4px', cursor: 'pointer', wordBreak: 'break-all' },
+    switchBtn: { backgroundColor: 'transparent', border: 'none', color: '#0f380f', fontSize: '9px', fontWeight: 'bold', cursor: 'pointer', padding: 0 },
+    smsItem: { padding: '3px', borderBottom: '1px dashed #0f380f', fontSize: '11px', cursor: 'pointer' },
+    retroBtn: { display: 'block', width: '100%', backgroundColor: '#8bac0f', border: '1px solid #0f380f', color: '#0f380f', padding: '4px', marginTop: '4px', cursor: 'pointer', fontWeight: 'bold', fontFamily: 'monospace' },
+    navSection: { display: 'flex', justifyContent: 'space-between', gap: '10px', marginTop: '15px' },
+    navBtn: { flex: 2, backgroundColor: '#1f2937', color: '#fff', border: '2px solid #111827', borderRadius: '12px', padding: '8px 0', fontWeight: 'bold', cursor: 'pointer' },
+    clearBtn: { flex: 1, backgroundColor: '#991b1b', color: '#fff', border: '2px solid #7f1d1d', borderRadius: '12px', padding: '8px 0', fontWeight: 'bold', fontSize: '14px', cursor: 'pointer' },
+    keypad: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginTop: '10px' },
+    key: { backgroundColor: '#1f2937', color: '#fff', border: '2px solid #111827', borderRadius: '8px', padding: '8px 0', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' },
+    keySubtext: { fontSize: '9px', color: '#9ca3af' }
 };
